@@ -50,10 +50,10 @@ class _DashboardPageState extends State<DashboardPage> {
     // и перерисовываем экран.
     _autoRefreshTimer =
         Timer.periodic(const Duration(seconds: 10), (_) {
-          if (!SettingsService.instance.autoRefresh) return;
-          MqttService.instance.checkConnection();
-          if (mounted) setState(() {});
-        });
+      if (!SettingsService.instance.autoRefresh) return;
+      MqttService.instance.checkConnection();
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -116,7 +116,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         CircleAvatar(
                           radius: 18,
                           backgroundColor:
-                          accentColor.withValues(alpha: 0.15),
+                              accentColor.withValues(alpha: 0.15),
                           child: const Icon(
                             Icons.person,
                             color: accentColor,
@@ -127,7 +127,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                                CrossAxisAlignment.start,
                             children: [
                               const Text(
                                 'Вы хотите выйти?',
@@ -160,11 +160,11 @@ class _DashboardPageState extends State<DashboardPage> {
                               foregroundColor: secondaryText,
                               side: BorderSide(
                                 color:
-                                Colors.white.withValues(alpha: 0.15),
+                                    Colors.white.withValues(alpha: 0.15),
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius:
-                                BorderRadius.circular(10),
+                                    BorderRadius.circular(10),
                               ),
                             ),
                             child: const Text('Отмена'),
@@ -182,7 +182,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 MaterialPageRoute(
                                   builder: (_) => const LoginPage(),
                                 ),
-                                    (route) => false,
+                                (route) => false,
                               );
                             },
                             style: ElevatedButton.styleFrom(
@@ -191,7 +191,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius:
-                                BorderRadius.circular(10),
+                                    BorderRadius.circular(10),
                               ),
                             ),
                             child: const Text('Выйти'),
@@ -224,159 +224,159 @@ class _DashboardPageState extends State<DashboardPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.memory,
-                    color: accentColor,
-                    size: 27,
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'BM MONITOR',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      Text(
-                        serverConnected
-                            ? 'Сервер подключён'
-                            : 'Сервер не подключён',
-                        style: TextStyle(
-                          color: serverConnected
-                              ? accentColor
-                              : Colors.redAccent,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: const Icon(
+                  Icons.memory,
+                  color: accentColor,
+                  size: 27,
                 ),
-                IconButton(
-                  onPressed: () => _showExitPopup(context),
-                  icon: const Icon(
-                    Icons.account_circle_outlined,
-                    color: secondaryText,
-                    size: 30,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
-
-            const Text(
-              'Панель управления',
-              style: TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
               ),
-            ),
-
-            const SizedBox(height: 7),
-
-            const Text(
-              'Состояние подключенного оборудования',
-              style: TextStyle(color: secondaryText),
-            ),
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: StatCard(
-                    title: 'Устройства',
-                    value: _devices.length.toString(),
-                    icon: Icons.devices,
-                    color: Colors.blueAccent,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StatCard(
-                    title: 'В сети',
-                    value: onlineCount.toString(),
-                    icon: Icons.wifi,
-                    color: accentColor,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              'Мои устройства',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            for (var i = 0; i < _devices.length; i++) ...[
-              DeviceCard(device: _devices[i]),
-              if (i < _devices.length - 1) const SizedBox(height: 12),
-            ],
-
-            const SizedBox(height: 28),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    serverConnected
-                        ? Icons.cloud_done_outlined
-                        : Icons.cloud_off_outlined,
-                    color: serverConnected
-                        ? accentColor
-                        : Colors.redAccent,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      serverConnected
-                          ? 'Подключено к HiveMQ Cloud. Данные '
-                          'обновляются в реальном времени.'
-                          : 'Нет соединения с сервером. Потяните '
-                          'вниз, чтобы обновить.',
-                      style: const TextStyle(
-                        color: secondaryText,
-                        fontSize: 12,
-                        height: 1.5,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'BM MONITOR',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
                       ),
                     ),
-                  ),
-                ],
+                    Text(
+                      serverConnected
+                          ? 'Сервер подключён'
+                          : 'Сервер не подключён',
+                      style: TextStyle(
+                        color: serverConnected
+                            ? accentColor
+                            : Colors.redAccent,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              IconButton(
+                onPressed: () => _showExitPopup(context),
+                icon: const Icon(
+                  Icons.account_circle_outlined,
+                  color: secondaryText,
+                  size: 30,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          const Text(
+            'Панель управления',
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
             ),
+          ),
+
+          const SizedBox(height: 7),
+
+          const Text(
+            'Состояние подключенного оборудования',
+            style: TextStyle(color: secondaryText),
+          ),
+
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: StatCard(
+                  title: 'Устройства',
+                  value: _devices.length.toString(),
+                  icon: Icons.devices,
+                  color: Colors.blueAccent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatCard(
+                  title: 'В сети',
+                  value: onlineCount.toString(),
+                  icon: Icons.wifi,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 28),
+
+          const Text(
+            'Мои устройства',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          for (var i = 0; i < _devices.length; i++) ...[
+            DeviceCard(device: _devices[i]),
+            if (i < _devices.length - 1) const SizedBox(height: 12),
           ],
-        ),
+
+          const SizedBox(height: 28),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  serverConnected
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_off_outlined,
+                  color: serverConnected
+                      ? accentColor
+                      : Colors.redAccent,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    serverConnected
+                        ? 'Подключено к HiveMQ Cloud. Данные '
+                          'обновляются в реальном времени.'
+                        : 'Нет соединения с сервером. Потяните '
+                          'вниз, чтобы обновить.',
+                    style: const TextStyle(
+                      color: secondaryText,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
       ),
     );
   }

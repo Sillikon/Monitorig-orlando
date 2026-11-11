@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -61,6 +62,31 @@ class MqttService extends ChangeNotifier {
   MqttService._();
   static final MqttService instance = MqttService._();
 
+  /// Запуск сторожа таймаута устройств.
+  void startWatchdog() {
+    _watchdogTimer ??= Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _checkDeviceTimeouts(),
+    );
+  }
+
+  void _checkDeviceTimeouts() {
+    final now = DateTime.now();
+    var changed = false;
+
+    _lastSeenAt.forEach((deviceId, lastSeen) {
+      if (now.difference(lastSeen) <= deviceTimeout) return;
+      if (_deviceStatuses[deviceId] == DeviceStatus.offline) return;
+
+      _deviceStatuses[deviceId] = DeviceStatus.offline;
+      NotificationService.instance
+          .deviceStatus(deviceId, online: false);
+      changed = true;
+    });
+
+    if (changed) notifyListeners();
+  }
+
   // ---- Параметры сервера ----
   static const String host =
       'b7c39db3cd51413696b0b4185988fef9.s1.eu.hivemq.cloud';
@@ -87,6 +113,14 @@ class MqttService extends ChangeNotifier {
 
   /// Статусы устройств по статус-топикам.
   final Map<String, DeviceStatus> _deviceStatuses = {};
+
+  /// Время последнего признака жизни устройства (пакет или статус).
+  final Map<String, DateTime> _lastSeenAt = {};
+
+  /// Если от устройства нет данных дольше этого — считаем офлайн.
+  static const Duration deviceTimeout = Duration(seconds: 40);
+
+  Timer? _watchdogTimer;
 
   Map<String, List<RawPacket>> get packetsByDevice =>
       Map.unmodifiable(_packetsByDevice);
@@ -243,6 +277,7 @@ class MqttService extends ChangeNotifier {
 
   void _handleRawPacket(RawPacket packet) {
     _packetsByDevice.putIfAbsent(packet.deviceId, () => []).add(packet);
+    _lastSeenAt[packet.deviceId] = DateTime.now();
 
     final list = _packetsByDevice[packet.deviceId]!;
     if (list.length > 200) {
@@ -259,6 +294,7 @@ class MqttService extends ChangeNotifier {
     final deviceId = (json['device'] ?? '').toString();
     if (deviceId.isEmpty) return;
     final online = json['online'] == true;
+    if (online) _lastSeenAt[deviceId] = DateTime.now();
     _updateDeviceStatus(deviceId, online);
     notifyListeners();
   }
