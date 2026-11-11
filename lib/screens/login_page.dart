@@ -4,6 +4,7 @@ import '../services/storage_service.dart';
 import '../core/app.dart';
 import '../core/constants.dart';
 import '../services/auth_service.dart';
+import '../widgets/double_back_exit.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -115,7 +116,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return DoubleBackExit(
+      child: Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -173,23 +175,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
 
                   const SizedBox(height: 55),
-
-                  const Text(
-                    'Добро пожаловать',
-                    style: TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 9),
-
-                  const Text(
-                    'Войдите в свою учетную запись',
-                    style: TextStyle(color: secondaryText),
-                  ),
-
-                  const SizedBox(height: 30),
 
                   const Text(
                     'Логин',
@@ -345,7 +330,7 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 8),
 
                   const Text(
-                    'Version 1.0.0',
+                    'Version 1.0.3',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Color(0xFF536174),
@@ -356,6 +341,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

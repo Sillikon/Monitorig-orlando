@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
 import '../screens/dashboard_page.dart';
 import '../screens/diagnostics_page.dart';
 import '../screens/login_page.dart';
 import '../screens/settings_page.dart';
 import '../screens/users_page.dart';
+import '../services/activity_service.dart';
+import '../services/auth_service.dart';
+import '../widgets/double_back_exit.dart';
 import 'constants.dart';
 
 class BMMonitorApp extends StatelessWidget {
@@ -32,8 +34,8 @@ class BMMonitorApp extends StatelessWidget {
 // ================= MAIN NAVIGATION =================
 
 /// Оболочка приложения с нижней навигацией.
-/// В исходной структуре отдельного файла для неё не было,
-/// поэтому она находится здесь, рядом с [BMMonitorApp].
+/// Также отслеживает события жизненного цикла приложения
+/// (сворачивание/разворачивание) и пишет их в журнал активности.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -41,7 +43,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int selectedIndex = 0;
 
   List<Widget> get pages {
@@ -52,6 +54,36 @@ class _MainScreenState extends State<MainScreen> {
       if (isAdmin) const UsersPage(),
       const SettingsPage(),
     ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final username = AuthService.instance.currentUser?.username;
+    if (username == null) return;
+
+    // Записываем сворачивание/разворачивание приложения в журнал.
+    switch (state) {
+      case AppLifecycleState.paused:
+        ActivityService.instance.log(username, ActivityEvent.appHidden);
+        break;
+      case AppLifecycleState.resumed:
+        ActivityService.instance.log(username, ActivityEvent.appOpened);
+        break;
+      default:
+        break;
+    }
   }
 
   @override
@@ -80,16 +112,18 @@ class _MainScreenState extends State<MainScreen> {
       ),
     ];
 
-    return Scaffold(
-      body: SafeArea(child: pages[selectedIndex]),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: cardColor,
-        indicatorColor: accentColor.withValues(alpha: 0.15),
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => selectedIndex = index);
-        },
-        destinations: destinations,
+    return DoubleBackExit(
+      child: Scaffold(
+        body: SafeArea(child: pages[selectedIndex]),
+        bottomNavigationBar: NavigationBar(
+          backgroundColor: cardColor,
+          indicatorColor: accentColor.withValues(alpha: 0.15),
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() => selectedIndex = index);
+          },
+          destinations: destinations,
+        ),
       ),
     );
   }

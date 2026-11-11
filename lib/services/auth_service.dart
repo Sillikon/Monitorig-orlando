@@ -1,4 +1,5 @@
 import '../models/user_model.dart';
+import 'activity_service.dart';
 
 /// Сервис аутентификации.
 ///
@@ -14,11 +15,24 @@ class AuthService {
       role: UserRole.admin,
     ),
     UserModel(
-      username: 'operator',
-      password: '112233',
+      username: 'operator1',
+      password: '1111',
+      role: UserRole.operator,
+    ),
+    UserModel(
+      username: 'operator2',
+      password: '2222',
+      role: UserRole.operator,
+    ),
+    UserModel(
+      username: 'operator3',
+      password: '3333',
       role: UserRole.operator,
     ),
   ];
+
+  /// Список всех пользователей (для экрана «Пользователи»).
+  static List<UserModel> get users => _users;
 
   UserModel? _currentUser;
   UserModel? get currentUser => _currentUser;
@@ -33,6 +47,7 @@ class AuthService {
             (u) => u.username == username && u.password == password,
       );
       _currentUser = user;
+      ActivityService.instance.log(user.username, ActivityEvent.login);
       return user;
     } catch (_) {
       _currentUser = null;
@@ -41,6 +56,10 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    final user = _currentUser;
+    if (user != null) {
+      ActivityService.instance.log(user.username, ActivityEvent.logout);
+    }
     _currentUser = null;
   }
 }
