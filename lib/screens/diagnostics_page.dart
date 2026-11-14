@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
 import '../services/mqtt_service.dart';
+import '../widgets/hacker_raw_view.dart';
 
-/// Экран диагностики: сырые HEX-пакеты от всех ESP32,
-/// сгруппированные по устройствам.
+/// Экран диагностики: «хакерский» терминал сырых кадров ESP32
+/// с расшифровкой по выбранному устройству + история пакетов.
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key});
 
@@ -14,6 +15,7 @@ class DiagnosticsPage extends StatefulWidget {
 
 class _DiagnosticsPageState extends State<DiagnosticsPage> {
   String? _selectedDeviceId;
+  bool _decodedMode = true; // true = расшифровка, false = голый HEX
 
   @override
   void initState() {
@@ -41,7 +43,6 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     final mqtt = MqttService.instance;
     final deviceIds = mqtt.deviceIds;
 
-    // Автовыбор устройства, если ещё не выбрано.
     if (_selectedDeviceId == null && deviceIds.isNotEmpty) {
       _selectedDeviceId = deviceIds.first;
     }
@@ -56,7 +57,6 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Заголовок и статус подключения.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           child: Row(
@@ -83,8 +83,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               IconButton(
                 tooltip: 'Очистить историю',
                 onPressed: mqtt.clearHistory,
-                icon: const Icon(Icons.delete_outline,
-                    color: secondaryText),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: secondaryText,
+                ),
               ),
             ],
           ),
@@ -93,7 +95,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
         // Выбор устройства-источника.
         if (deviceIds.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -125,9 +127,62 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             ),
           ),
 
-        const SizedBox(height: 8),
+        // Переключатель режима терминала.
+        if (_selectedDeviceId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  _ModeButton(
+                    label: 'Расшифровка',
+                    icon: Icons.qr_code_scanner,
+                    active: _decodedMode,
+                    onTap: () => setState(() => _decodedMode = true),
+                  ),
+                  _ModeButton(
+                    label: 'Сырой HEX',
+                    icon: Icons.hexagon_outlined,
+                    active: !_decodedMode,
+                    onTap: () => setState(() => _decodedMode = false),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-        // Список пакетов (новые сверху).
+        const SizedBox(height: 14),
+
+        // Терминал.
+        if (_selectedDeviceId != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: HackerRawView(
+              deviceId: _selectedDeviceId!,
+              decodedMode: _decodedMode,
+            ),
+          ),
+
+        const SizedBox(height: 18),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'История пакетов',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
         Expanded(
           child: deviceIds.isEmpty
               ? const Center(
@@ -136,8 +191,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.terminal,
-                            size: 65, color: accentColor),
+                        Icon(
+                          Icons.terminal,
+                          size: 65,
+                          color: accentColor,
+                        ),
                         SizedBox(height: 20),
                         Text(
                           'Ожидание данных',
@@ -161,7 +219,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                   itemCount: packets.length,
                   itemBuilder: (context, index) {
                     final packet =
@@ -174,6 +232,58 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ModeButton({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: active
+                ? accentColor.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: active ? accentColor : secondaryText,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: active ? accentColor : secondaryText,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
