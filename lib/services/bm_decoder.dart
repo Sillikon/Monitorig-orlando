@@ -1,268 +1,316 @@
-/// Декодер кадров контроллера Bletting Manager (BM V57x2).
-///
-/// Формат кадра (19 байт, по руководству пользователя):
-///   байты 0..1   — знакоместа 1..2 (двухразрядный индикатор режима)
-///   байты 2..9   — знакоместа 3..10 (4 цифры часов программы + 4 цифры
-///                  основного значения)
-///   байт  10     — линейка светодиодов датчиков температуры (1=погашен)
-///   байт  11     — линейка светодиодов дней программы (1=погашен)
-///   байты 12..15 — маски мигающих сегментов знакомест 1..4
-///   байт  16     — состояние агрегатов (1=выключен, 0=включен)
-///   байты 17..18 — контрольная сумма (младший, старший байт;
-///                  арифметическая сумма байт 0..16)
-///
-/// ВНИМАНИЕ: порядок бит сегментов и некоторые границы полей
-/// восстановлены из распознанного текста руководства и калибруются
-/// по реальным кадрам. Все сомнительные места собраны в константах
-/// ниже — при расхождении с дисплеем меняем только их.
-library;
+import 'package:flutter/foundation.dart';
 
-/// Одна расшифрованная цифра семисегментного индикатора.
+/// Единый символ индикатора (одно знакоместо).
 class BmDigit {
-  /// Исходный байт знакоместа.
-  final int raw;
-
-  /// Символ ('0'-'9', 'A'-'F', пробел) или null, если комбинация
-  /// сегментов не распознана.
+  /// Символ для показа: '0'..'9', '.', или набор сегментов вида "{AEFG}" для
+  /// нестандартных комбинаций, или null если знакоместо пустое (0xFF).
   final String? char;
 
-  /// Зажжён ли символ вообще (все сегменты погашены).
-  final bool blank;
+  /// Сегменты, которые реально горят (A..G + H = точка).
+  final Set<String> segments;
 
-  /// Мигающие сегменты (по маске из кадра).
+  /// Точка (сегмент H) горит.
+  final bool dot;
+
+  /// Сегмент мигает (по маске мигания).
   final bool blinking;
 
   const BmDigit({
-    required this.raw,
     required this.char,
-    required this.blank,
-    this.blinking = false,
+    required this.segments,
+    required this.dot,
+    required this.blinking,
   });
+
+  bool get blank => char == null && segments.isEmpty && !dot;
 }
 
-/// Состояние одного выхода (агрегата) камеры.
-class BmRelay {
-  final String name;
-  final bool on;
-  const BmRelay(this.name, this.on);
-}
-
-/// Полностью расшифрованный кадр.
+/// Расшифрованный 19-байтный кадр BM V57x2.
+///
+/// Раскладка (подтверждена по руководству + живым кадрам,
+/// стартовых байт в потоке нет):
+///   [0,1]   знакоместа 1,2   — индикатор температуры (слева)
+///   [2..5]  знакоместа 7..10 — индикатор «Days of Program» (справа)
+///   [6]     линейка датчиков температуры (0 = светодиод зажжён)
+///   [7]     линейка дней программы       (0 = светодиод зажжён)
+///   [8]     маска мигания сегментов знакоместа 1
+///   [9]     маска мигания сегментов знакоместа 2
+///   [10]    маска мигания светодиодов датчиков
+///   [11]    маска мигания светодиодов дней
+///   [12..15] знакоместа 3..6 — индикатор «Clock of Program» (центр)
+///   [16]    байт агрегатов (1 = выключен, 0 = включен)
+///   [17,18] контрольная сумма (мл., ст.) — сумма байт 0..16
 class BmFrame {
-  final List<int> bytes;
+  /// Знакоместа 1,2 (температура слева).
+  final List<BmDigit> tempDigits;
 
-  /// Режим работы: «On», «GS», «Pr», «St» или null.
-  final String? mode;
-
-  /// 4 цифры часов программы (обычно HH.MM).
+  /// Знакоместа 3..6 (часы программы, центр).
   final List<BmDigit> clockDigits;
 
-  /// 4 цифры основного значения (обычно температура XX.X).
-  final List<BmDigit> valueDigits;
+  /// Знакоместа 7..10 (дни программы, справа).
+  final List<BmDigit> dayDigits;
 
-  /// 8 светодиодов линейки датчиков (true = горит).
+  /// Линейка датчиков: true = светодиод зажжён. Индекс 0 = датчик 1.
   final List<bool> sensorLeds;
 
-  /// 8 светодиодов линейки дней программы (true = горит).
+  /// Линейка дней: true = светодиод зажжён. Индекс 0 = день 1.
   final List<bool> dayLeds;
 
-  /// Состояние агрегатов.
-  final List<BmRelay> relays;
+  /// Маска мигания светодиодов датчиков (бит=1 → мигает).
+  final int blinkSensors;
+
+  /// Маска мигания светодиодов дней (бит=1 → мигает).
+  final int blinkDays;
+
+  /// Байт агрегатов (сырой).
+  final int relaysByte;
 
   /// Контрольная сумма сошлась.
   final bool checksumOk;
 
   const BmFrame({
-    required this.bytes,
-    required this.mode,
+    required this.tempDigits,
     required this.clockDigits,
-    required this.valueDigits,
+    required this.dayDigits,
     required this.sensorLeds,
     required this.dayLeds,
-    required this.relays,
+    required this.blinkSensors,
+    required this.blinkDays,
+    required this.relaysByte,
     required this.checksumOk,
   });
 
-  /// Часы программы строкой, например «03.45».
+  /// Текст индикатора режима (знакоместа 1,2): "Pr", "GS" и т.п.
+  String get modeText {
+    final raw = tempDigits
+        .map((d) => d.char ?? (d.segments.isEmpty ? '' : '{${d.segments.join()}}'))
+        .join();
+    return raw.trim();
+  }
+
+  /// Режим в человекочитаемом виде, напр. «Газация».
+  String? get modeLabel => BmDecoder._modeTable[modeText];
+
+  /// Текст индикатора режима (сырой), напр. "0.5" или "{ACDEF}·5.".
+  String get tempText => _digitsToText(tempDigits);
+
+  /// Текст индикатора часов программы.
   String get clockText => _digitsToText(clockDigits);
 
-  /// Основное значение строкой, например «20.0».
-  String get valueText => _digitsToText(valueDigits);
+  /// Текст индикатора дней программы, напр. "16.7".
+  String get daysText => _digitsToText(dayDigits);
 
   static String _digitsToText(List<BmDigit> digits) {
     final buf = StringBuffer();
     for (final d in digits) {
-      buf.write(d.char ?? (d.blank ? ' ' : '?'));
+      if (d.blank) {
+        buf.write(' ');
+      } else if (d.char != null) {
+        buf.write(d.char);
+        if (d.dot) buf.write('.');
+      } else {
+        buf.write('{${d.segments.join()}}');
+        if (d.dot) buf.write('.');
+      }
     }
     return buf.toString().trim();
   }
+}
+
+/// Состояние одного агрегата.
+class BmRelay {
+  final String name;
+  final bool on;
+
+  /// Для тревоги: true = тревоги нет (бит=1), false = тревога активна (бит=0).
+  final bool isAlarm;
+
+  const BmRelay(this.name, this.on, {this.isAlarm = false});
 }
 
 class BmDecoder {
   BmDecoder._();
   static final BmDecoder instance = BmDecoder._();
 
-  // ================== КАЛИБРОВОЧНЫЕ КОНСТАНТЫ ==================
+  static const int frameLength = 19;
+  static const int relaysIndex = 16;
 
-  /// Привязка бит байта знакоместа к сегментам индикатора.
-  /// Индекс в списке = номер бита (0 = младший).
-  static const List<String> segmentByBit = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+  /// Порядок бит в байте агрегатов (по руководству, бит 7 — старший слева):
+  /// бит7 — Блокировка дверей, бит6 — Газ, бит5 — Охлаждение,
+  /// бит4 — Вентиляция, бит3 — Вентилятор воздухоохладителя,
+  /// бит2 — Нагрев, бит1 — резерв, бит0 — Тревога.
+  static const List<String> relayNames = [
+    'Нагрев',
+    'Вентилятор воздухоохладителя',
+    'Вентиляция',
+    'Охлаждение',
+    'Газ',
+    'Блокировка дверей',
   ];
 
-  /// true = сегмент погашен при бите 1 (по руководству).
-  static const bool inactiveHigh = true;
-
-  /// Индексы полей в кадре.
-  static const int modeByte1 = 0;
-  static const int modeByte2 = 1;
-  static const int clockStart = 2; // 4 байта
-  static const int valueStart = 6; // 4 байта
-  static const int sensorLedByte = 10;
-  static const int dayLedByte = 11;
-  static const int blinkStart = 12; // маски мигающих сегментов
-  static const int relaysByte = 16;
-
-  /// Агрегаты: (название, номер бита в байте 16, инверсия).
-  /// По руководству: 1 = выключен, 0 = включен.
-  static const List<(String, int)> relayBits = [
-    ('Нагрев', 0),
-    ('Вентилятор воздухоохладителя', 1),
-    ('Вентиляция', 2),
-    ('Охлаждение', 3),
-    ('Газ', 4),
-    ('Блокировка дверей', 5),
-    ('Тревога', 6),
-  ];
-
-  /// Таблица сегментов (A B C D E F G) -> символ.
-  /// 1 = сегмент горит. Порядок сегментов — kSegmentOrder.
+  /// Калиброванная таблица сегментов: код → символ.
+  /// Код = биты A..G (бит0=A … бит6=G), точка (H, бит7) обрабатывается отдельно.
+  /// Подтверждена кадром-примером из руководства и живыми кадрами.
   static const Map<int, String> _segmentTable = {
-    0x3F: '0', 0x06: '1', 0x5B: '2', 0x4F: '3',
-    0x66: '4', 0x6D: '5', 0x7D: '6', 0x07: '7',
-    0x7F: '8', 0x6F: '9', 0x77: 'A', 0x7C: 'b',
-    0x39: 'C', 0x5E: 'd', 0x79: 'E', 0x71: 'F',
+    0x3F: '0',
+    0x06: '1',
+    0x5B: '2',
+    0x4F: '3',
+    0x66: '4',
+    0x6D: '5',
+    0x7D: '6',
+    0x07: '7',
+    0x7F: '8',
+    0x6F: '9',
+    0x40: '-', // только средний сегмент
+    // Буквы (для индикатора режима и нестандартных символов)
+    0x77: 'A', // A,B,C,E,F,G
+    0x7C: 'b', // C,D,E,F,G
+    0x39: 'C', // A,D,E,F
+    0x5E: 'd', // B,C,D,E,G
+    0x79: 'E', // A,D,E,F,G
+    0x71: 'F', // A,E,F,G
+    0x3D: 'G', // A,C,D,E,F
+    0x76: 'H', // B,C,E,F,G
+    0x38: 'L', // D,E,F
+    0x54: 'n', // C,E,G
+    0x5C: 'o', // C,D,E,G
+    0x73: 'P', // A,B,E,F,G
+    0x50: 'r', // E,G
+    0x78: 't', // D,E,F,G
+    0x3E: 'U', // B,C,D,E,F
+    0x6E: 'Y', // B,C,D,F,G
   };
 
-  /// Маска горящих сегментов для режимов (по двум байтам режима).
+  /// Распознавание режима по первым двум знакоместам (индикатор режима).
   static const Map<String, String> _modeTable = {
-    'On': 'On',
-    'GS': 'GS',
-    'Pr': 'Pr',
-    'St': 'St',
+    'GS': 'Газация',
+    'G5': 'Газация', // S и 5 неотличимы на 7-сегментнике
+    'PR': 'Программа',
+    'Pr': 'Программа',
+    'ST': 'Стоп',
+    '5T': 'Стоп',
+    'ON': 'Работа',
+    '0N': 'Работа',
+    'AL': 'Авария',
   };
 
-  // ================== РАСШИФРОВКА ==================
-
+  /// Проверка контрольной суммы: сумма байт 0..16 == байт17 | байт18<<8.
   bool verifyChecksum(List<int> frame) {
-    if (frame.length != 19) return false;
-    var sum = 0;
-    for (var i = 0; i < 17; i++) {
+    if (frame.length < frameLength) return false;
+    int sum = 0;
+    for (var i = 0; i < frameLength - 2; i++) {
       sum += frame[i];
     }
-    final crc = frame[17] | (frame[18] << 8);
+    final crc = frame[frameLength - 2] | (frame[frameLength - 1] << 8);
     return sum == crc;
   }
 
-  /// Расшифровать кадр из 19 байт (список int).
-  BmFrame decode(List<int> frame) {
-    final ok = verifyChecksum(frame);
-
-    BmDigit digit(int byteIndex) {
-      final raw = frame[byteIndex];
-      final segs = _activeSegments(raw);
-      final blank = segs.isEmpty;
-      final char = blank ? null : _segmentTable[_mask(segs)];
-      return BmDigit(raw: raw, char: char, blank: blank);
+  BmDigit _decodeDigit(int byte, int blinkMask) {
+    const segByBit = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    final segments = <String>{};
+    var code = 0;
+    for (var i = 0; i < 7; i++) {
+      final bit = (byte >> i) & 1;
+      if (bit == 0) {
+        segments.add(segByBit[i]);
+        code |= 1 << i;
+      }
     }
+    final dot = (byte & 0x80) == 0;
+    final anyBlink = segments.any((s) {
+      final idx = segByBit.indexOf(s);
+      return ((blinkMask >> idx) & 1) == 1;
+    }) ||
+        (dot && ((blinkMask & 0x80) != 0));
 
-    final clockDigits = [
-      for (var i = 0; i < 4; i++) digit(clockStart + i),
-    ];
-    final valueDigits = [
-      for (var i = 0; i < 4; i++) digit(valueStart + i),
-    ];
-
-    final modeChars = [
-      _segmentTable[_mask(_activeSegments(frame[modeByte1]))],
-      _segmentTable[_mask(_activeSegments(frame[modeByte2]))],
-    ];
-    final modeText = modeChars.join();
-    final mode = _modeTable[modeText] ??
-        ((modeChars.any((c) => c != null)) ? modeText : null);
-
-    final sensorLeds = [
-      for (var i = 0; i < 8; i++)
-        _ledOn(frame[sensorLedByte], i),
-    ];
-    final dayLeds = [
-      for (var i = 0; i < 8; i++) _ledOn(frame[dayLedByte], i),
-    ];
-
-    final relays = [
-      for (final (name, bit) in relayBits)
-        BmRelay(name, !_bit(frame[relaysByte], bit)),
-    ];
-
-    return BmFrame(
-      bytes: List.unmodifiable(frame),
-      mode: mode,
-      clockDigits: clockDigits,
-      valueDigits: valueDigits,
-      sensorLeds: sensorLeds,
-      dayLeds: dayLeds,
-      relays: relays,
-      checksumOk: ok,
+    if (byte == 0xFF) {
+      return BmDigit(char: null, segments: const {}, dot: false, blinking: anyBlink);
+    }
+    final known = _segmentTable[code];
+    return BmDigit(
+      char: known,
+      segments: segments,
+      dot: dot,
+      blinking: anyBlink,
     );
   }
 
-  /// Расшифровать из HEX-строки (как приходит в MQTT «hex»).
+  List<bool> _decodeLeds(int byte, int blinkMask) {
+    // Бит 7 = светодиод 8 … бит 0 = светодиод 1. 0 = зажжён.
+    return List.generate(8, (i) {
+      final bit = 7 - i;
+      return ((byte >> bit) & 1) == 0;
+    });
+  }
+
+  bool _ledBlink(int index, int blinkMask) {
+    final bit = 7 - index;
+    return ((blinkMask >> bit) & 1) == 1;
+  }
+
+  /// Декодирует 19-байтный кадр.
+  BmFrame decode(List<int> frame) {
+    assert(frame.length >= frameLength);
+    return BmFrame(
+      tempDigits: [
+        _decodeDigit(frame[0], frame[8]),
+        _decodeDigit(frame[1], frame[9]),
+      ],
+      dayDigits: [
+        _decodeDigit(frame[2], 0),
+        _decodeDigit(frame[3], 0),
+        _decodeDigit(frame[4], 0),
+        _decodeDigit(frame[5], 0),
+      ],
+      clockDigits: [
+        _decodeDigit(frame[12], 0),
+        _decodeDigit(frame[13], 0),
+        _decodeDigit(frame[14], 0),
+        _decodeDigit(frame[15], 0),
+      ],
+      sensorLeds: _decodeLeds(frame[6], frame[10]),
+      dayLeds: _decodeLeds(frame[7], frame[11]),
+      blinkSensors: frame[10],
+      blinkDays: frame[11],
+      relaysByte: frame[relaysIndex],
+      checksumOk: verifyChecksum(frame),
+    );
+  }
+
+  /// Декодирует HEX-строку из 38 символов (19 байт).
   BmFrame? decodeHex(String hex) {
-    final clean = hex.replaceAll(' ', '');
-    if (clean.length != 38) return null;
+    if (hex.length < 38) return null;
     final bytes = <int>[];
     for (var i = 0; i < 38; i += 2) {
-      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+      bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
     }
     return decode(bytes);
   }
 
-  // ================== ВНУТРЕННЕЕ ==================
-
-  /// Список горящих сегментов байта знакоместа.
-  Set<String> _activeSegments(int byte) {
-    final result = <String>{};
-    for (var bit = 0; bit < 8; bit++) {
-      final isSet = (byte & (1 << bit)) != 0;
-      final lit = inactiveHigh ? !isSet : isSet;
-      if (lit) result.add(segmentByBit[bit]);
-    }
-    return result;
+  /// Список агрегатов: (название, включён).
+  /// ВНИМАНИЕ: в прошивке V57x2 полярность ИНВЕРТИРОВАНА относительно
+  /// руководства — 1 = ВКЛ, 0 = ВЫКЛ (подтверждено: газация при бите=1).
+  /// Исключение — Тревога: 0 = тревога активна, 1 = тревоги нет.
+  /// Биты: 2 Нагрев, 3 Вент.возд., 4 Вентиляция, 5 Охлаждение, 6 Газ,
+  /// 7 Блок.дверей, 0 Тревога.
+  List<BmRelay> relays(int relaysByte) {
+    bool on(int bit) => ((relaysByte >> bit) & 1) == 1;
+    return [
+      BmRelay('Нагрев', on(2)),
+      BmRelay('Вентилятор воздухоохладителя', on(3)),
+      BmRelay('Вентиляция', on(4)),
+      BmRelay('Охлаждение', on(5)),
+      BmRelay('Газ', on(6)),
+      BmRelay('Блокировка дверей', on(7)),
+      // Тревога (как в руководстве): бит=0 — тревога активна, бит=1 — нет.
+      BmRelay('Тревога', !on(0), isAlarm: true),
+    ];
   }
 
-  /// Маска сегментов A..G для таблицы символов.
-  int _mask(Set<String> segs) {
-    var mask = 0;
-    const order = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-    for (var i = 0; i < order.length; i++) {
-      if (segs.contains(order[i])) mask |= 1 << i;
-    }
-    return mask;
-  }
+  bool ledBlink(int index, int blinkMask) => _ledBlink(index, blinkMask);
 
-  int _bitForSegment(String seg) => segmentByBit.indexOf(seg);
-
-  bool _bit(int byte, int bit) => (byte & (1 << bit)) != 0;
-
-  /// Светодиод линейки: по руководству 1 = погашен.
-  bool _ledOn(int byte, int index) => !_bit(byte, index);
-
-  /// HEX-строка кадра для отладки.
-  String toHex(List<int> bytes) {
-    final buf = StringBuffer();
-    for (final b in bytes) {
-      buf.write(b.toRadixString(16).padLeft(2, '0').toUpperCase());
-    }
-    return buf.toString();
-  }
+  /// HEX кадра для отладки.
+  String toHex(List<int> frame) =>
+      frame.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join();
 }

@@ -206,14 +206,15 @@ class _HackerRawViewState extends State<HackerRawView> {
   String _decodedText(_TerminalLine line) {
     final frame = BmDecoder.instance.decodeHex(line.hex);
     if (frame == null) return line.hex;
-    final mode = frame.mode ?? '----';
-    final value = frame.valueText.padLeft(5);
-    final clock = frame.clockText.padLeft(5);
-    final relaysOn = frame.relays
+    final mode = (frame.modeLabel ?? frame.modeText).padLeft(6);
+    final clock = frame.clockText.padLeft(6);
+    final days = frame.daysText.padLeft(6);
+    final relaysOn = BmDecoder.instance
+        .relays(frame.relaysByte)
         .where((r) => r.on)
         .map((r) => r.name)
         .join(',');
-    return '$mode | t=$value | clk=$clock | $relaysOn';
+    return '$mode | clk=$clock | day=$days | $relaysOn';
   }
 }
 
