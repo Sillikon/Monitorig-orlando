@@ -30,15 +30,15 @@ class _DashboardPageState extends State<DashboardPage> {
         for (final entry in known.entries)
           DeviceModel(
             deviceId: entry.key,
-            name: 'BM Controller ${entry.key}',
+            name: deviceDisplayName(entry.key),
             status: entry.value,
           ),
       ];
     }
-    return const [
-      DeviceModel(deviceId: 'BM01', name: 'BM Controller BM01'),
-      DeviceModel(deviceId: 'BM02', name: 'BM Controller BM02'),
-      DeviceModel(deviceId: 'BM03', name: 'BM Controller BM03'),
+    return [
+      const DeviceModel(deviceId: 'BM01', name: 'Камера газации №1'),
+      const DeviceModel(deviceId: 'BM02', name: 'Камера газации №2'),
+      const DeviceModel(deviceId: 'BM03', name: 'Камера газации №3'),
     ];
   }
 

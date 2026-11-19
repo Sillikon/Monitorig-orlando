@@ -457,7 +457,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 8),
 
                     const Text(
-                      'Version 1.0.4',
+                      'Version 1.0.5',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Color(0xFF536174),

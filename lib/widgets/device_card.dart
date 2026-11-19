@@ -54,7 +54,7 @@ class DeviceCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    device.deviceId,
+                    device.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -62,7 +62,7 @@ class DeviceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    device.name,
+                    device.deviceId,
                     style: const TextStyle(
                       color: secondaryText,
                       fontSize: 12,

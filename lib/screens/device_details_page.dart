@@ -42,7 +42,14 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> {
     return BmDecoder.instance.decodeHex(packet.hex);
   }
 
-  bool get _isOnline => MqttService.instance.deviceStatuses[widget.device.deviceId] == true;
+  bool get _isOnline {
+    final statuses = MqttService.instance.deviceStatuses;
+    final id = widget.device.deviceId;
+    final status = statuses[id] ??
+        statuses[id.toUpperCase()] ??
+        statuses[id.toLowerCase()];
+    return status == DeviceStatus.online;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +147,7 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'BM Controller ${widget.device.deviceId}',
+                deviceDisplayName(widget.device.deviceId),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,

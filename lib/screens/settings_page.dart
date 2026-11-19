@@ -162,7 +162,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Divider(height: 1, color: Colors.white10),
             _InfoTile(
               icon: Icons.verified_outlined,
-              text: 'Версия 1.0.4',
+              text: 'Версия 1.0.5',
             ),
             Divider(height: 1, color: Colors.white10),
             _InfoTile(
