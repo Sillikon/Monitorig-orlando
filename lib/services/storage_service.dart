@@ -1,20 +1,32 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
 /// Сервис локального хранения (токены, настройки).
 ///
-/// Данные держатся в памяти и пропадают при перезапуске.
-/// Позже заменить на shared_preferences / hive.
+/// Данные сохраняются через SharedPreferences и переживают
+/// перезапуск приложения.
 class StorageService {
   StorageService._();
   static final StorageService instance = StorageService._();
 
-  final Map<String, String> _memory = {};
+  SharedPreferences? _prefs;
 
-  Future<void> save(String key, String value) async {
-    _memory[key] = value;
+  Future<SharedPreferences> get _storage async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
   }
 
-  Future<String?> read(String key) async => _memory[key];
+  Future<void> save(String key, String value) async {
+    final prefs = await _storage;
+    await prefs.setString(key, value);
+  }
+
+  Future<String?> read(String key) async {
+    final prefs = await _storage;
+    return prefs.getString(key);
+  }
 
   Future<void> delete(String key) async {
-    _memory.remove(key);
+    final prefs = await _storage;
+    await prefs.remove(key);
   }
 }
